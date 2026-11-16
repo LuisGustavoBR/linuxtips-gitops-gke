@@ -6,6 +6,7 @@ on:
     paths:
       - "network/**"
       - "gke/**"
+      - "argocd/**"
       - ".github/workflows/**"
       - ".tflint.hcl"
       - ".trivyignore.yaml"
@@ -46,7 +47,7 @@ jobs:
 
       - name: terraform validate
         run: |
-          for dir in network gke; do
+          for dir in network gke argocd; do
             echo "::group::$dir"
             terraform -chdir="$dir" init -backend=false -input=false
             terraform -chdir="$dir" validate
@@ -80,6 +81,7 @@ jobs:
     outputs:
       network: ${{ steps.diff.outputs.network }}
       gke: ${{ steps.diff.outputs.gke }}
+      argocd: ${{ steps.diff.outputs.argocd }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7.0.1
@@ -103,7 +105,7 @@ jobs:
               all=true
             fi
           fi
-          for dir in network gke; do
+          for dir in network gke argocd; do
             if [ "$all" = "true" ] || grep -q "^$dir/" <<<"$changed"; then value=true; else value=false; fi
             echo "$dir=$value" >>"$GITHUB_OUTPUT"
             echo "$dir: $value"
@@ -126,6 +128,17 @@ jobs:
     uses: ./.github/workflows/_terraform.yaml
     with:
       dir: gke
+    permissions:
+      contents: read
+      id-token: write
+
+  # Runs after gke: Argo CD is installed into the cluster that gke/ creates.
+  argocd:
+    needs: [checks, changes, gke]
+    if: ${{ !failure() && !cancelled() && needs.changes.outputs.argocd == 'true' }}
+    uses: ./.github/workflows/_terraform.yaml
+    with:
+      dir: argocd
     permissions:
       contents: read
       id-token: write

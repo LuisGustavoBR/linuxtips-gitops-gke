@@ -1,0 +1,17 @@
+# Values for the argo-cd Helm chart.
+# Every option: https://github.com/argoproj/argo-helm/blob/main/charts/argo-cd/values.yaml
+
+global:
+  # Run every Argo CD component on the on-demand system pool, never on Spot nodes.
+  nodeSelector:
+    node-pool: system
+
+configs:
+  params:
+    # The server speaks plain HTTP inside the cluster. For now we reach it with
+    # kubectl port-forward; later, TLS ends at the load balancer in front of it.
+    server.insecure: true
+
+# Dex is the SSO component (log in with GitHub, for example). Off until we set up SSO.
+dex:
+  enabled: false

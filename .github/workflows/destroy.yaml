@@ -1,7 +1,8 @@
 name: destroy-gke
 
 # Manual only: Actions > destroy-gke > Run workflow.
-# Destroys the cluster (gke/) and keeps the network. Run "terraform" again to recreate it.
+# Destroys Argo CD and then the cluster, in the reverse order they were created.
+# The network stays. Run "terraform" again to recreate everything.
 on:
   workflow_dispatch:
 
@@ -14,7 +15,17 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  argocd:
+    uses: ./.github/workflows/_terraform.yaml
+    with:
+      dir: argocd
+      destroy: true
+    permissions:
+      contents: read
+      id-token: write
+
   gke:
+    needs: argocd
     uses: ./.github/workflows/_terraform.yaml
     with:
       dir: gke
