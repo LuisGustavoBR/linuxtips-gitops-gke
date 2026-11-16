@@ -1,0 +1,8 @@
+# Accepted findings. Each one is limited to a path and explained; anything new fails the pipeline.
+misconfigurations:
+  - id: GCP-0061
+    paths:
+      - "gke/cluster.tf"
+    statement: >-
+      Master authorized networks only filter the IP-based control-plane endpoint, which is
+      disabled. The cluster is reached only through its DNS endpoint, authorised by IAM.

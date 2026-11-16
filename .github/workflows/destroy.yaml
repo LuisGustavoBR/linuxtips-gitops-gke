@@ -1,0 +1,24 @@
+name: destroy-gke
+
+# Manual only: Actions > destroy-gke > Run workflow.
+# Destroys the cluster (gke/) and keeps the network. Run "terraform" again to recreate it.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Same group as the terraform workflow: they never run at the same time.
+concurrency:
+  group: terraform
+  cancel-in-progress: false
+
+jobs:
+  gke:
+    uses: ./.github/workflows/_terraform.yaml
+    with:
+      dir: gke
+      destroy: true
+    permissions:
+      contents: read
+      id-token: write
