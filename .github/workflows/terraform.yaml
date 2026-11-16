@@ -1,0 +1,104 @@
+name: terraform
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "network/**"
+      - ".github/workflows/terraform.yaml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Two runs at the same time would fight over the same state.
+concurrency:
+  group: terraform
+  cancel-in-progress: false
+
+env:
+  TF_VERSION: "1.17.2"
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+  TF_VAR_project_id: ${{ vars.GCP_PROJECT_ID }}
+  TF_DIR: network
+  ENV: lab
+
+jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    environment: lab
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Log in to Google Cloud (Workload Identity Federation, no keys)
+        uses: google-github-actions/auth@v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - name: Install Terraform
+        uses: hashicorp/setup-terraform@v4.0.1
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: terraform init
+        working-directory: ${{ env.TF_DIR }}
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
+            -backend-config="prefix=${{ env.ENV }}/${{ env.TF_DIR }}"
+
+      - name: terraform plan
+        working-directory: ${{ env.TF_DIR }}
+        run: |
+          terraform plan -no-color -var-file="envs/${{ env.ENV }}.tfvars" | tee plan.txt
+          {
+            echo "### Terraform plan: ${{ env.TF_DIR }} (${{ env.ENV }})"
+            echo '```'
+            cat plan.txt
+            echo '```'
+          } >>"$GITHUB_STEP_SUMMARY"
+
+  apply:
+    needs: plan
+    runs-on: ubuntu-24.04
+    environment: lab
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Log in to Google Cloud (Workload Identity Federation, no keys)
+        uses: google-github-actions/auth@v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - name: Install Terraform
+        uses: hashicorp/setup-terraform@v4.0.1
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: terraform init
+        working-directory: ${{ env.TF_DIR }}
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
+            -backend-config="prefix=${{ env.ENV }}/${{ env.TF_DIR }}"
+
+      - name: terraform apply
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform apply -auto-approve -no-color -var-file="envs/${{ env.ENV }}.tfvars"
